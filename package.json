@@ -1,0 +1,30 @@
+{
+  "name": "low-latency-video-engine",
+  "version": "1.0.0",
+  "description": "features-",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "prisma": "^5.15.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rohnoan/low-latency-video-processing-engine.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/rohnoan/low-latency-video-processing-engine/issues"
+  },
+  "homepage": "https://github.com/rohnoan/low-latency-video-processing-engine#readme",
+  "dependencies": {
+    "@prisma/client": "^5.15.0"
+  }
+}
