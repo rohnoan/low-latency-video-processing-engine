@@ -2,13 +2,11 @@ import express from "express";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuid } from "uuid";
+import { prisma } from "../lib/prisma";
 
 const router = express.Router();
-console.log("AWS_REGION =", process.env.AWS_REGION);
-console.log("AWS_ACCESS_KEY_ID =", process.env.AWS_ACCESS_KEY_ID);
-console.log("AWS_SECRET_ACCESS_KEY =", process.env.AWS_SECRET_ACCESS_KEY ? "SET" : "MISSING");
-console.log("AWS_BUCKET =", process.env.AWS_BUCKET);
 
+//creates s3 connection with client to the bucket
 const s3 = new S3Client({
   region: process.env.AWS_REGION as string,
   credentials: {
@@ -17,29 +15,43 @@ const s3 = new S3Client({
   }
 });
 
-
-
-
 router.post("/upload/request", async (req, res) => {
   try {
-    const { title } = req.body;
-    if (!title) return res.status(400).json({ error: "title required" });
+    const { title, userId } = req.body;
+
+    if (!title || !userId) {
+      return res.status(400).json({ error: "title and userId required" });
+    }
 
     const id = uuid();
+
+    //unique s3 file path based on uuid 
     const key = `videos/${id}/raw.mp4`;
 
+    // 1. INSERT INTO DB
+    const video = await prisma.video.create({
+      data: {
+        title,
+        rawKey: key,
+        status: "uploaded",
+        userId
+      }
+    });
+
+    // upload instructution for the path
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET,
       Key: key,
       ContentType: "video/mp4"
     });
 
-    // Generate presigned URL (valid for 10 minutes)
-    const signedUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
+    //gets the url
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
 
     return res.json({
-      uploadUrl: signedUrl,
-      key
+      uploadUrl,
+      key,
+      videoId: video.id
     });
   } catch (err) {
     console.error("presign error", err);
