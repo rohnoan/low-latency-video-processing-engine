@@ -23,14 +23,15 @@ router.post("/upload/request", async (req, res) => {
       return res.status(400).json({ error: "title and userId required" });
     }
 
-    const id = uuid();
+    const videoId = uuid();
 
     //unique s3 file path based on uuid 
-    const key = `videos/${id}/raw.mp4`;
+    const key = `videos/${videoId}/raw.mp4`;
 
     // 1. INSERT INTO DB
     const video = await prisma.video.create({
       data: {
+        id:videoId,
         title,
         rawKey: key,
         status: "uploaded",
@@ -49,9 +50,9 @@ router.post("/upload/request", async (req, res) => {
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
 
     return res.json({
+      videoId,
       uploadUrl,
-      key,
-      videoId: video.id
+      key, 
     });
   } catch (err) {
     console.error("presign error", err);

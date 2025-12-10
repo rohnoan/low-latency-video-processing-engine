@@ -1,21 +1,80 @@
-import { Worker } from "bullmq";
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
+import { Worker, Job } from "bullmq";
+import { prisma } from "./prisma";
+import { downloadFromS3, uploadToS3 } from "./s3";
+import { transcode480p } from "./ffmpeg";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
-const worker = new Worker(
+const TMP = os.tmpdir(); // Windows safe
+
+const bucket = process.env.AWS_BUCKET!;
+console.log("Worker started...");
+
+new Worker(
   "transcode",
-  async (job) => {
-    const { videoId } = job.data;
-    console.log("Processing video:", videoId);
+  async (job: Job) => {
+    try {
+      const { videoId } = job.data;
+      console.log("Processing video:", videoId);
 
-    // For now just log and mark in DB later (Step 10)
+      // 1. Fetch video from DB
+      const video = await prisma.video.findUnique({ where: { id: videoId } });
+      if (!video) {
+        console.error("Video not found in DB");
+        return;
+      }
+
+      console.log("Raw key:", video.rawKey);
+
+      // local temp paths
+      const inputFile = path.join(TMP, `${videoId}.mp4`);
+      const output480 = path.join(TMP, `${videoId}_480p.mp4`);
+
+      // 2. Mark processing
+      await prisma.video.update({
+        where: { id: videoId },
+        data: { status: "processing" }
+      });
+
+      // 3. Download original from S3
+      console.log("Downloading from S3...");
+      await downloadFromS3(bucket, video.rawKey, inputFile);
+
+      // 4. Run ffmpeg
+      console.log("Running ffmpeg...");
+      await transcode480p(inputFile, output480);
+
+      // 5. Upload transcoded video to S3
+      console.log("Uploading output to S3...");
+      const outputKey = `videos/${videoId}/480p.mp4`;
+
+      await uploadToS3(bucket, outputKey, output480);
+
+      // 6. Update DB with final result
+      console.log("Updating DB...");
+      await prisma.video.update({
+        where: { id: videoId },
+        data: {
+          status: "processed",
+          variants: [{ resolution: "480p", key: outputKey }]
+        }
+      });
+
+      console.log("Finished processing:", videoId);
+
+      // 7. Clean up
+      fs.unlinkSync(inputFile);
+      fs.unlinkSync(output480);
+    } catch (err) {
+      console.error("Worker error:", err);
+    }
   },
   {
     connection: {
-      host: process.env.REDIS_HOST,
-      port: Number(process.env.REDIS_PORT)
-    },
+      host: "localhost",
+      port: 6379
+    }
   }
 );
-
-console.log("Worker started...");
