@@ -6,8 +6,15 @@ import { transcode480p } from "./ffmpeg";
 import fs from "fs";
 import os from "os";
 import path from "path";
-
+import { Queue } from "bullmq";
 const TMP = os.tmpdir(); // Windows safe
+
+const connection = {
+  host: "localhost",
+  port: 6379,
+};
+
+const transcodeDLQ = new Queue("transcodeDLQ", { connection });
 
 const bucket = process.env.AWS_BUCKET!;
 console.log("Worker started...");
@@ -22,8 +29,10 @@ new Worker(
       // 1. Fetch video from DB
       const video = await prisma.video.findUnique({ where: { id: videoId } });
       if (!video) {
-        console.error("Video not found in DB");
-        return;
+        if (!video) {
+          throw new Error("Video not found in DB");
+        }
+
       }
 
       console.log("Raw key:", video.rawKey);
@@ -67,9 +76,32 @@ new Worker(
       // 7. Clean up
       fs.unlinkSync(inputFile);
       fs.unlinkSync(output480);
-    } catch (err) {
-      console.error("Worker error:", err);
-    }
+    } catch (err: any) {
+  console.error("Worker error:", err);
+
+  const isFinalAttempt =
+    job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+
+  if (isFinalAttempt) {
+    await transcodeDLQ.add("dead-video", {
+      videoId: job.data.videoId,
+      error: err.message,
+      attempts: job.attemptsMade + 1,
+    });
+
+    await prisma.video.update({
+      where: { id: job.data.videoId },
+      data: {
+        status: "failed",
+        failCount: { increment: 1 },
+        lastError: err.message,
+      },
+    });
+  }
+
+  throw err; 
+}
+
   },
   {
     connection: {

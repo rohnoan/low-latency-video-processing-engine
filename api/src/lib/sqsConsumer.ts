@@ -6,6 +6,8 @@ import {
 import { prisma } from "./prisma";
 import { transcodeQueue } from "./queue";
 
+// my api polls sqs then adds those jobs to bullmq and deletes in sqs unless error
+
 const sqs = new SQSClient({ region: process.env.AWS_REGION! });
 const QUEUE_URL = process.env.SQS_QUEUE_URL!;
 
