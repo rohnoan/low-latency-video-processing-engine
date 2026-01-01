@@ -21,6 +21,10 @@ model Video {
   rawKey     String
   variants   Json?
   thumbKey   String?
+  processingStartedAt DateTime?
+  thumbGeneratedAt    DateTime?
+  transcodedAt        DateTime?
+
   user       User     @relation(fields: [userId], references: [id])
   userId     String
   failCount Int @default(0)
