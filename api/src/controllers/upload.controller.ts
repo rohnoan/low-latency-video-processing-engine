@@ -7,22 +7,24 @@ import { randomUUID } from "crypto";
 const s3 = new S3Client({ region: process.env.AWS_REGION! });
 
 export const requestUpload = async (req: Request, res: Response) => {
-  const { title, userId } = req.body;
+  const { title  } = req.body;
 
-  if (!title || !userId) {
+  if (!title   ) {
     return res.status(400).json({ error: "title and userId required" });
   }
 
   const videoId = randomUUID();
   const key = `videos/${videoId}/raw.mp4`;
+  console.log("USING DB:", process.env.DATABASE_URL);
+   console.log("UPLOAD REQUEST:", { videoId, key });
 
   await prisma.video.create({
     data: {
       id: videoId,
-      title,
-      userId,
+      title, 
       rawKey: key,
       status: "uploaded",
+    userId: "dev-user",
     },
   });
 
@@ -33,6 +35,8 @@ export const requestUpload = async (req: Request, res: Response) => {
   });
 
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
+  console.log("UPLOAD URL:", uploadUrl);
+  console.log("KEY:", key);
 
   res.json({ videoId, uploadUrl, key });
 };

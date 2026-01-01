@@ -16,7 +16,7 @@ export function transcode480p(inputPath: string, outputPath: string) {
         reject(error);
       } else {
         resolve(true);
-      }
+       }
     });
   });
 }
