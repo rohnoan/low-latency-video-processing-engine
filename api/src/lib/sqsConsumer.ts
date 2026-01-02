@@ -59,7 +59,7 @@ export async function startSqsConsumer() {
         // Update status
         await prisma.video.update({
           where: { id: videoId },
-          data: { status: "queued" },
+          data: { status: "processing" },
         });
 
         // Enqueue job

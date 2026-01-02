@@ -45,7 +45,7 @@ export const retryVideo = async (req: Request, res: Response) => {
   await prisma.video.update({
     where: { id },
     data: {
-      status: "queued",
+      status: "processing",
       lastError: null,
     },
   });

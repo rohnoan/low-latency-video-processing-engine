@@ -37,7 +37,7 @@ export default function Dashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: file.name,
-        userId: "temp-user", // auth later
+        userId: "dev-user", // auth later
       }),
     });
 

@@ -1,30 +1,34 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { prisma } from "../lib/prisma";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 const s3 = new S3Client({ region: process.env.AWS_REGION! });
 
-export const requestUpload = async (req: Request, res: Response) => {
-  const { title  } = req.body;
+export const requestUpload = async (req: AuthRequest, res: Response) => {
+  const { title } = req.body;
 
-  if (!title   ) {
-    return res.status(400).json({ error: "title and userId required" });
+  if (!title) {
+    return res.status(400).json({ error: "title required" });
+  }
+
+  // 🔐 Auth guarantee
+  if (!req.user) {
+    return res.status(401).json({ error: "unauthorized" });
   }
 
   const videoId = randomUUID();
   const key = `videos/${videoId}/raw.mp4`;
-  console.log("USING DB:", process.env.DATABASE_URL);
-   console.log("UPLOAD REQUEST:", { videoId, key });
 
   await prisma.video.create({
     data: {
       id: videoId,
-      title, 
+      title,
       rawKey: key,
       status: "uploaded",
-    userId: "dev-user",
+      userId: req.user.id,
     },
   });
 
@@ -35,8 +39,6 @@ export const requestUpload = async (req: Request, res: Response) => {
   });
 
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
-  console.log("UPLOAD URL:", uploadUrl);
-  console.log("KEY:", key);
 
-  res.json({ videoId, uploadUrl, key });
+  return res.json({ videoId, uploadUrl, key });
 };
